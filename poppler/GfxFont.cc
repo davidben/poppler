@@ -1489,13 +1489,15 @@ GfxCIDFont::GfxCIDFont(XRef *xref, char *tagA, Ref idA, GooString *nameA,
     cMapName = new GooString(obj1.getName());
     cMap = globalParams->getCMap(collection, cMapName);
   }
-  delete collection;
-  delete cMapName;
   if (!cMap) {
       error(-1, "Unknown CMap '%s' for character collection '%s'",
 	    cMapName->getCString(), collection->getCString());
+      delete collection;
+      delete cMapName;
       goto err2;
     }
+  delete collection;
+  delete cMapName;
   obj1.free();
 
   // CIDToGIDMap (for embedded TrueType fonts)
