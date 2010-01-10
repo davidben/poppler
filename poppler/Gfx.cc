@@ -663,6 +663,7 @@ void Gfx::go(GBool topLevel) {
   numArgs = 0;
   parser->getObj(&obj);
   while (!obj.isEOF()) {
+    commandAborted = gFalse;
 
     // got a command - execute it
     if (obj.isCmd()) {
@@ -708,6 +709,14 @@ void Gfx::go(GBool topLevel) {
       if (++updateLevel >= 20000) {
 	out->dump();
 	updateLevel = 0;
+      }
+
+      // did the command throw an exception
+      if (commandAborted) {
+	// don't propogate; recursive drawing comes from Form XObjects which
+	// should probably be drawn in a separate context anyway for caching
+	commandAborted = gFalse;
+	break;
       }
 
       // check for an abort
@@ -784,6 +793,7 @@ void Gfx::execOp(Object *cmd, Object args[], int numArgs) {
   if (op->numArgs >= 0) {
     if (numArgs < op->numArgs) {
       error(getPos(), "Too few (%d) args to '%s' operator", numArgs, name);
+      commandAborted = gTrue;
       return;
     }
     if (numArgs > op->numArgs) {
@@ -4762,6 +4772,7 @@ void Gfx::saveState() {
 void Gfx::restoreState() {
   if (stackHeight <= bottomGuard() || !state->hasSaves()) {
     error(-1, "Restoring state when no valid states to pop");
+    commandAborted = gTrue;
     return;
   }
   state = state->restore();
