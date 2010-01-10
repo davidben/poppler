@@ -526,6 +526,7 @@ Gfx::Gfx(XRef *xrefA, OutputDev *outA, int pageNum, Dict *resDict, Catalog *cata
   out = outA;
   state = new GfxState(hDPI, vDPI, box, rotate, out->upsideDown());
   stackHeight = 1;
+  pushStateGuard();
   fontChanged = gFalse;
   clip = clipNone;
   ignoreUndef = 0;
@@ -579,6 +580,7 @@ Gfx::Gfx(XRef *xrefA, OutputDev *outA, Dict *resDict, Catalog *catalogA,
   out = outA;
   state = new GfxState(72, 72, box, 0, gFalse);
   stackHeight = 1;
+  pushStateGuard();
   fontChanged = gFalse;
   clip = clipNone;
   ignoreUndef = 0;
@@ -603,7 +605,12 @@ Gfx::Gfx(XRef *xrefA, OutputDev *outA, Dict *resDict, Catalog *catalogA,
 }
 
 Gfx::~Gfx() {
+  while (stateGuards.size()) {
+    popStateGuard();
+  }
+  // There shouldn't be more saves, but pop them if there were any
   while (state->hasSaves()) {
+    error(-1, "Found state under last state guard. Popping.");
     restoreState();
   }
   if (!subPage) {
@@ -651,6 +658,7 @@ void Gfx::go(GBool topLevel) {
   int lastAbortCheck;
 
   // scan a sequence of objects
+  pushStateGuard();
   updateLevel = lastAbortCheck = 0;
   numArgs = 0;
   parser->getObj(&obj);
@@ -748,6 +756,8 @@ void Gfx::go(GBool topLevel) {
     for (i = 0; i < numArgs; ++i)
       args[i].free();
   }
+
+  popStateGuard();
 
   // update display
   if (topLevel && updateLevel > 0) {
@@ -4729,6 +4739,20 @@ void Gfx::drawAnnot(Object *str, AnnotBorder *border, AnnotColor *aColor, double
   }
 }
 
+int Gfx::bottomGuard() {
+    return stateGuards[stateGuards.size()-1];
+}
+
+void Gfx::pushStateGuard() {
+    stateGuards.push_back(stackHeight);
+}
+
+void Gfx::popStateGuard() {
+    while (stackHeight > bottomGuard() && state->hasSaves())
+	restoreState();
+    stateGuards.pop_back();
+}
+
 void Gfx::saveState() {
   out->saveState(state);
   state = state->save();
@@ -4736,6 +4760,10 @@ void Gfx::saveState() {
 }
 
 void Gfx::restoreState() {
+  if (stackHeight <= bottomGuard() || !state->hasSaves()) {
+    error(-1, "Restoring state when no valid states to pop");
+    return;
+  }
   state = state->restore();
   out->restoreState(state);
   stackHeight--;

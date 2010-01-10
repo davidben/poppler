@@ -34,6 +34,7 @@
 
 #include "goo/gtypes.h"
 #include "goo/GooList.h"
+#include "goo/GooVector.h"
 #include "GfxState.h"
 #include "Object.h"
 #include "PopplerCache.h"
@@ -161,8 +162,14 @@ public:
   // Save graphics state.
   void saveState();
 
+  // Push a new state guard
+  void pushStateGuard();
+
   // Restore graphics state.
   void restoreState();
+
+  // Pop to state guard and pop guard
+  void popStateGuard();
 
   // Get the current graphics state object.
   GfxState *getState() { return state; }
@@ -192,6 +199,7 @@ private:
 
   GfxState *state;		// current graphics state
   int stackHeight;		// the height of the current graphics stack
+  GooVector<int> stateGuards;   // a stack of state limits; to guard against unmatched pops
   GBool fontChanged;		// set if font or text matrix has changed
   GfxClipType clip;		// do a clip?
   int ignoreUndef;		// current BX/EX nesting level
@@ -218,6 +226,8 @@ private:
   Operator *findOp(char *name);
   GBool checkArg(Object *arg, TchkType type);
   int getPos();
+
+  int bottomGuard();
 
   // graphics state operators
   void opSave(Object args[], int numArgs);
